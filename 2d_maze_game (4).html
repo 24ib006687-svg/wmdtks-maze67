@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2D 미로 탐험가 - 양산증산초등학교 에디션</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&family=Gowun+Batang:wght@700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Pretendard', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #2c1a11;
+        }
+        .font-arcade {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .font-serif-title {
+            font-family: 'Gowun Batang', serif;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a89f91;
+            border-radius: 3px;
+        }
+        .speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border-radius: 1.25rem;
+            border: 2px solid #a3704c;
+        }
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            left: 28px;
+            bottom: -12px;
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 12px solid #a3704c;
+        }
+    </style>
+</head>
+<body class="bg-amber-950 text-stone-800 w-screen h-screen overflow-hidden select-none relative m-0 p-0">
+
+    <!-- Fullscreen Maze Canvas -->
+    <canvas id="mazeCanvas" class="absolute inset-0 w-full h-full cursor-pointer touch-none z-0"></canvas>
+
+    <!-- Minimal Top Right Control Buttons -->
+    <div class="absolute top-3 right-3 z-10 flex items-center gap-2 pointer-events-auto">
+        <button id="helpBtn" class="p-2 sm:p-2.5 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-100 transition-all border border-amber-600/40 backdrop-blur-md shadow-lg" title="도움말">
+            <i class="fa-solid fa-circle-question text-base sm:text-lg"></i>
+        </button>
+        <button id="restartBtn" class="p-2 sm:p-2.5 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-100 transition-all border border-amber-600/40 backdrop-blur-md shadow-lg" title="미로 재배치">
+            <i class="fa-solid fa-rotate-right text-base sm:text-lg"></i>
+        </button>
+        <button id="soundToggleBtn" class="p-2 sm:p-2.5 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-100 transition-colors border border-amber-600/40 backdrop-blur-md shadow-lg" title="음향 효과">
+            <i class="fa-solid fa-volume-high text-base sm:text-lg" id="soundIcon"></i>
+        </button>
+    </div>
+
+    <!-- Floating Toast Notification -->
+    <div id="gameToast" class="fixed top-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-stone-900/90 backdrop-blur-md border border-amber-500/40 text-stone-100 text-xs sm:text-sm rounded-full shadow-2xl opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-2 z-30">
+        <i class="fa-solid fa-circle-info text-amber-400"></i>
+        <span id="toastMsg">메시지</span>
+    </div>
+
+    <!-- Symbol Collection Detail Modal Overlay -->
+    <div id="symbolModal" class="fixed inset-0 bg-stone-900/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-40 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div id="symbolModalCard" class="bg-stone-50 border-2 border-amber-300 rounded-3xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl transform scale-95 transition-all duration-300 relative overflow-hidden">
+            <!-- Symbol Type Tag -->
+            <div id="symbolTypeTag" class="inline-block px-4 py-1.5 rounded-full text-xs sm:text-sm font-extrabold mb-4 shadow-sm border">
+                교화 (학교 상징)
+            </div>
+            
+            <!-- Symbol Graphic / Icon Container -->
+            <div class="flex justify-center mb-4">
+                <div id="symbolIconContainer" class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center shadow-md border-2 text-5xl sm:text-6xl p-2 bg-white">
+                </div>
+            </div>
+
+            <!-- Symbol Name -->
+            <h3 id="symbolName" class="text-2xl sm:text-3xl font-extrabold text-stone-900 mb-3">
+                상징물 이름
+            </h3>
+
+            <!-- Description Box -->
+            <div class="bg-stone-100/90 rounded-2xl p-4 sm:p-5 border border-stone-200 mb-6 text-left shadow-inner">
+                <p id="symbolDesc" class="text-sm sm:text-base text-stone-800 leading-relaxed font-semibold">
+                    상징물 상세 설명이 나타납니다.
+                </p>
+            </div>
+
+            <!-- Continue Button (Starts with 5s Timer Lock) -->
+            <button id="closeSymbolBtn" disabled class="w-full py-3.5 bg-stone-500 text-stone-200 font-extrabold rounded-2xl shadow-xl transition-all text-base sm:text-lg flex items-center justify-center gap-2 opacity-60 cursor-not-allowed">
+                <i id="symbolBtnIcon" class="fa-solid fa-clock text-amber-300 animate-spin"></i>
+                <span id="closeSymbolBtnText">5초 후 계속할 수 있습니다 (5s)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Ending School Dodgeball Court Cutscene Modal Overlay -->
+    <div id="endingCutsceneModal" class="fixed inset-0 bg-stone-900/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-50 opacity-0 pointer-events-none transition-opacity duration-500">
+        <div id="endingCutsceneContent" class="bg-stone-50 border border-amber-300 rounded-3xl p-6 sm:p-8 max-w-xl w-full text-center shadow-2xl transform scale-95 transition-all duration-500 relative overflow-hidden">
+            
+            <!-- Dodgeball Court Header Visual -->
+            <div class="flex items-center justify-between pb-3 sm:pb-4 border-b border-stone-300 mb-5 text-sm sm:text-base text-amber-950 font-bold">
+                <span class="flex items-center gap-2"><i class="fa-solid fa-volleyball text-amber-600 text-lg sm:text-xl"></i> 양산증산초등학교 피구장</span>
+                <span class="bg-amber-100 px-3 py-1 rounded-full text-xs sm:text-sm text-amber-900 border border-amber-300 font-semibold">탐험 완료</span>
+            </div>
+
+            <!-- Playground Illustration & Dialogue Box -->
+            <div class="relative bg-gradient-to-b from-amber-50 to-orange-50/80 rounded-2xl p-5 border border-amber-200 mb-6 flex flex-col items-center shadow-inner">
+                
+                <!-- Dodgeball Graphical Display -->
+                <div class="w-full bg-amber-600/10 border border-amber-500/30 rounded-2xl p-4 mb-4 flex justify-around items-center text-3xl sm:text-4xl shadow-sm relative overflow-hidden">
+                    <span class="transform hover:scale-110 transition-transform relative z-10">🌺</span>
+                    <div class="flex items-center gap-3 relative z-10">
+                        <span class="text-4xl sm:text-5xl drop-shadow">🏐</span>
+                        <div class="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
+                            <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow">
+                                <path d="M 15,100 A 85,85 0 0,1 185,100 L 160,100 A 60,60 0 0,0 40,100 Z" fill="#82C341" />
+                                <path d="M 185,100 A 85,85 0 0,1 15,100 L 40,100 A 60,60 0 0,0 160,100 Z" fill="#0072CE" />
+                                <circle cx="27.5" cy="100" r="7" fill="#FFD700" />
+                                <circle cx="172.5" cy="100" r="7" fill="#FFD700" />
+                                <path d="M 100,32 L 142,148 L 121,148 L 100,78 L 79,148 L 58,148 Z" fill="#F8A51D" />
+                            </svg>
+                        </div>
+                    </div>
+                    <span class="transform hover:scale-110 transition-transform relative z-10">🌲</span>
+                </div>
+
+                <!-- Speech Bubble Dialogue -->
+                <div class="speech-bubble p-4 sm:p-5 text-left w-full shadow-md mb-4">
+                    <p id="endingSpeechText" class="text-base sm:text-xl font-extrabold text-amber-950 leading-relaxed font-serif-title">
+                        "신나는 피구장에서 상징물을 모두 모았어!<br>이걸 이용해 멋진 새 마크를 만들어 보자!"
+                    </p>
+                </div>
+
+                <!-- Student Character Profile -->
+                <div class="flex items-center gap-3 w-full px-1">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-200 text-2xl sm:text-3xl flex items-center justify-center shadow-md border-2 border-amber-800 flex-shrink-0">
+                        👩‍🎓
+                    </div>
+                    <div class="text-left">
+                        <div class="text-sm sm:text-base font-extrabold text-stone-900">양산증산초등학교 학생</div>
+                        <div class="text-xs text-stone-600">피구장에서 멋진 아이디어를 떠올린 탐험가</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <a href="https://github.com/24ib006687-svg/mark-PPT/blob/main/%EB%A7%88%ED%81%AC%20%EC%9E%98%20%EB%A0%8C%EB%93%9C%EB%8A%94%EB%B2%95.pptx" target="_blank" rel="noopener noreferrer" class="flex-1 py-3 px-4 bg-amber-100 hover:bg-amber-200 text-amber-950 font-extrabold rounded-2xl border border-amber-400 shadow-md transition-all text-xs sm:text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-powerpoint text-orange-600"></i>
+                    <span>'마크 잘 만드는 법' PPT 보기</span>
+                </a>
+                <button id="triggerFadeOutBtn" class="flex-1 py-3 px-4 bg-gradient-to-r from-amber-800 via-stone-800 to-amber-900 hover:from-amber-700 hover:to-amber-800 text-amber-50 font-extrabold rounded-2xl shadow-xl transition-all text-xs sm:text-sm flex items-center justify-center gap-2">
+                    <span>새 마크 구상하기</span>
+                    <i class="fa-solid fa-arrow-right text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Fade-to-Dark Blackout Screen Overlay -->
+    <div id="blackoutOverlay" class="fixed inset-0 bg-stone-950 z-50 opacity-0 pointer-events-none transition-opacity duration-1000 flex flex-col items-center justify-center p-6 text-center">
+        <div id="blackoutContent" class="opacity-0 transition-opacity duration-1000 delay-500 max-w-lg w-full space-y-6">
+            <div class="w-28 h-28 sm:w-36 sm:h-36 mx-auto">
+                <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-[0_0_25px_rgba(245,158,11,0.5)]">
+                    <path d="M 15,100 A 85,85 0 0,1 185,100 L 160,100 A 60,60 0 0,0 40,100 Z" fill="#82C341" />
+                    <path d="M 185,100 A 85,85 0 0,1 15,100 L 40,100 A 60,60 0 0,0 160,100 Z" fill="#0072CE" />
+                    <circle cx="27.5" cy="100" r="7" fill="#FFD700" />
+                    <circle cx="172.5" cy="100" r="7" fill="#FFD700" />
+                    <path d="M 100,32 L 142,148 L 121,148 L 100,78 L 79,148 L 58,148 Z" fill="#F8A51D" />
+                </svg>
+            </div>
+            
+            <div class="space-y-3">
+                <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">양산증산초등학교</h2>
+                <p class="text-sm sm:text-base text-amber-300 font-semibold">꿈과 배움이 자라나는 행복 교육 공동체</p>
+            </div>
+
+            <p class="text-xs sm:text-sm text-stone-400 leading-relaxed pt-2 border-t border-stone-800">
+                학교 상징을 모두 발견하고 소중한 가치를 되새겼습니다.<br>새로운 미래를 향해 나아갑니다.
+            </p>
+
+            <div class="flex flex-col gap-3 pt-2">
+                <a href="https://github.com/24ib006687-svg/mark-PPT" target="_blank" rel="noopener noreferrer" class="w-full py-3.5 px-6 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-2xl font-extrabold text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-powerpoint text-amber-400"></i>
+                    <span>📊 '마크 잘 만드는 법' PPT 자료실 (GitHub)</span>
+                </a>
+                <button id="blackoutRestartBtn" class="w-full py-3.5 px-6 bg-amber-900/80 hover:bg-amber-800 text-amber-100 border border-amber-600/50 rounded-2xl font-extrabold text-xs sm:text-sm shadow-2xl transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-right text-xs"></i>
+                    <span>미로 다시 도전하기</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-stone-50 border border-stone-300 rounded-3xl p-6 max-w-md w-full text-left shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2">
+                    <i class="fa-solid fa-gamepad text-amber-800"></i> 게임 안내 및 조작법
+                </h3>
+                <button id="closeHelpBtn" class="text-stone-500 hover:text-stone-800 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3 text-xs sm:text-sm text-stone-700">
+                <div class="bg-white p-3 rounded-xl border border-stone-200">
+                    <div class="font-semibold text-amber-900 mb-1">🎮 조작법 안내</div>
+                    <ul class="list-disc list-inside space-y-1 text-stone-600">
+                        <li>키보드: <span class="text-stone-900 font-bold">방향키 (← ↑ → ↓)</span>로 이동합니다.</li>
+                        <li>모바일: 화면 <span class="text-stone-900 font-bold">스와이프</span>로 이동 가능합니다.</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white p-3 rounded-xl border border-stone-200">
+                    <div class="font-semibold text-emerald-900 mb-1">🏫 양산증산초 미로 규칙</div>
+                    <ul class="list-disc list-inside space-y-1 text-stone-600">
+                        <li>미로 속 3가지 상징물(🌺 동백꽃, 🌲 소나무, 🏫 학교 마크)을 모두 모으세요!</li>
+                        <li>상징물을 모으면 설명창이 뜨며 10초 후 계속 이동할 수 있습니다.</li>
+                        <li>상징물을 다 모은 후 빨간색 목적지에 도착하면 완료됩니다.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <button id="confirmHelpBtn" class="w-full mt-5 py-2.5 bg-stone-800 hover:bg-stone-700 text-amber-50 font-medium rounded-xl transition-colors text-sm">
+                확인
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Sound Generator Engine
+        class SoundEngine {
+            constructor() {
+                this.enabled = true;
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+            }
+
+            playTone(freq, type = 'sine', duration = 0.1, gainVal = 0.15) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {}
+            }
+
+            playMove() {
+                this.playTone(280, 'sine', 0.04, 0.05);
+            }
+
+            playGem() {
+                this.playTone(523.25, 'triangle', 0.12, 0.2);
+                setTimeout(() => this.playTone(659.25, 'triangle', 0.12, 0.2), 70);
+                setTimeout(() => this.playTone(783.99, 'triangle', 0.18, 0.2), 140);
+            }
+
+            playWin() {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => {
+                        this.playTone(freq, 'triangle', 0.3, 0.25);
+                    }, idx * 110);
+                });
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        // Vector SVG Emblem
+        const jungsanEmblemSvgRaw = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+            <defs>
+                <path id="upperArcPath" d="M 30,100 A 70,70 0 0,1 170,100" />
+                <path id="lowerArcPath" d="M 170,100 A 70,70 0 0,1 30,100" />
+            </defs>
+            <path d="M 15,100 A 85,85 0 0,1 185,100 L 160,100 A 60,60 0 0,0 40,100 Z" fill="#82C341" />
+            <path d="M 185,100 A 85,85 0 0,1 15,100 L 40,100 A 60,60 0 0,0 160,100 Z" fill="#0072CE" />
+            <circle cx="27.5" cy="100" r="7" fill="#FFD700" stroke="#FFFFFF" stroke-width="1.5" />
+            <circle cx="172.5" cy="100" r="7" fill="#FFD700" stroke="#FFFFFF" stroke-width="1.5" />
+            <text font-family="'Pretendard', sans-serif" font-weight="900" font-size="16" fill="#FFFFFF" text-anchor="middle">
+                <textPath href="#upperArcPath" startOffset="50%">증 산 초 등 학 교</textPath>
+            </text>
+            <text font-family="'Pretendard', sans-serif" font-weight="700" font-size="8.5" fill="#FFFFFF" text-anchor="middle">
+                <textPath href="#lowerArcPath" startOffset="50%">Yang San Jung San Elementary School</textPath>
+            </text>
+            <path d="M 100,30 L 142,148 L 121,148 L 100,78 L 79,148 L 58,148 Z" fill="#F8A51D" />
+        </svg>`;
+
+        const emblemImg = new Image();
+        emblemImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(jungsanEmblemSvgRaw);
+
+        // Maze Generator
+        class MazeGenerator {
+            constructor(cols = 33, rows = 21) {
+                this.cols = cols;
+                this.rows = rows;
+                this.grid = []; 
+                this.gems = [];
+                this.solutionPath = [];
+            }
+
+            isInsideFlippedCShape(x, y) {
+                if (x <= 0 || x >= this.cols - 1 || y <= 0 || y >= this.rows - 1) {
+                    return false;
+                }
+                const topArm = (y >= 1 && y <= 6 && x >= 1 && x <= this.cols - 2);
+                const rightSpine = (x >= 21 && x <= this.cols - 2 && y >= 1 && y <= this.rows - 2);
+                const bottomArm = (y >= 14 && y <= this.rows - 2 && x >= 1 && x <= this.cols - 2);
+
+                return (topArm || rightSpine || bottomArm);
+            }
+
+            generate() {
+                this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(1));
+
+                const stack = [];
+                const startX = 1;
+                const startY = 1;
+
+                this.grid[startY][startX] = 0;
+                stack.push([startX, startY]);
+
+                const directions = [[0, -2], [0, 2], [-2, 0], [2, 0]];
+
+                while (stack.length > 0) {
+                    const [cx, cy] = stack[stack.length - 1];
+                    const neighbors = [];
+
+                    for (const [dx, dy] of directions) {
+                        const nx = cx + dx;
+                        const ny = cy + dy;
+
+                        if (this.isInsideFlippedCShape(nx, ny)) {
+                            if (this.grid[ny][nx] === 1) {
+                                neighbors.push([nx, ny, dx, dy]);
+                            }
+                        }
+                    }
+
+                    if (neighbors.length > 0) {
+                        const [nx, ny, dx, dy] = neighbors[Math.floor(Math.random() * neighbors.length)];
+                        this.grid[cy + dy / 2][cx + dx / 2] = 0;
+                        this.grid[ny][nx] = 0;
+                        stack.push([nx, ny]);
+                    } else {
+                        stack.pop();
+                    }
+                }
+
+                // Slightly reduced extra loops for a cleaner, slightly easier maze path
+                for (let r = 1; r < this.rows - 1; r++) {
+                    for (let c = 1; c < this.cols - 1; c++) {
+                        if (this.grid[r][c] === 1 && this.isInsideFlippedCShape(c, r)) {
+                            const topIsPath = (this.grid[r - 1] && this.grid[r - 1][c] === 0);
+                            const bottomIsPath = (this.grid[r + 1] && this.grid[r + 1][c] === 0);
+                            const leftIsPath = (this.grid[r][c - 1] === 0);
+                            const rightIsPath = (this.grid[r][c + 1] === 0);
+
+                            if ((topIsPath && bottomIsPath && !leftIsPath && !rightIsPath) ||
+                                (leftIsPath && rightIsPath && !topIsPath && !bottomIsPath)) {
+                                if (Math.random() < 0.10) {
+                                    this.grid[r][c] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const endX = 1;
+                const endY = this.rows - 2;
+                this.grid[endY][endX] = 0;
+
+                this.solutionPath = this.findSolutionPath(1, 1, endX, endY);
+
+                this.gems = [];
+                const len = this.solutionPath.length;
+                if (len > 3) {
+                    const step1 = Math.floor(len * 0.25);
+                    const step2 = Math.floor(len * 0.50);
+                    const step3 = Math.floor(len * 0.75);
+
+                    const symbolMeta = [
+                        { 
+                            id: 'camellia', 
+                            name: '동백꽃', 
+                            typeTag: '교화 (학교 상징 꽃)',
+                            icon: '🌺', 
+                            isSvg: false,
+                            color: '#e11d48', 
+                            tagBg: 'bg-rose-100 text-rose-900 border-rose-300',
+                            cardBorder: 'border-rose-300',
+                            shadow: '#f43f5e',
+                            toast: '🌺 양산증산초 교화 "동백꽃"을 수집했습니다!',
+                            desc: '추운 겨울을 이겨내고 선명하고 아름다운 붉은 꽃을 피우는 동백꽃입니다. 어려움 속에서도 좌절하지 않고 스스로를 단련하는 굳센 의지와 남을 따뜻하게 배려하는 예쁜 마음을 담고 있습니다.'
+                        },
+                        { 
+                            id: 'pine', 
+                            name: '소나무', 
+                            typeTag: '교목 (학교 상징 나무)',
+                            icon: '🌲', 
+                            isSvg: false,
+                            color: '#059669', 
+                            tagBg: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+                            cardBorder: 'border-emerald-300',
+                            shadow: '#10b981',
+                            toast: '🌲 양산증산초 교목 "소나무"를 수집했습니다!',
+                            desc: '사계절 내내 변함없이 푸르고 기품 있는 모습을 지키는 소나무입니다. 어떠한 시련이나 난관에도 흔들리지 않는 씩씩한 기상과 바르고 곧게 자라나는 인성을 나타냅니다.'
+                        },
+                        { 
+                            id: 'emblem', 
+                            name: '양산증산초등학교 마크', 
+                            typeTag: '교표 (학교 상징 마크)',
+                            icon: '', 
+                            isSvg: true,
+                            color: '#d97706', 
+                            tagBg: 'bg-amber-100 text-amber-900 border-amber-300',
+                            cardBorder: 'border-amber-300',
+                            shadow: '#f59e0b',
+                            toast: '🏫 자랑스러운 "양산증산초등학교 마크"를 수집했습니다!',
+                            desc: '학생, 학부모, 교직원이 다 함께 어우러져 꿈과 희망을 키워가는 행복한 배움터! 양산증산초등학교의 정교한 상징 마크로 지혜로운 배움 공동체와 밝은 미래를 나타냅니다.'
+                        }
+                    ];
+
+                    [step1, step2, step3].forEach((idx, i) => {
+                        const pt = this.solutionPath[idx];
+                        this.gems.push({ 
+                            x: pt.x, 
+                            y: pt.y, 
+                            collected: false,
+                            ...symbolMeta[i]
+                        });
+                    });
+                }
+
+                return this.grid;
+            }
+
+            findSolutionPath(startX, startY, endX, endY) {
+                const queue = [[startX, startY, []]];
+                const visited = new Set();
+                visited.add(`${startX},${startY}`);
+
+                while (queue.length > 0) {
+                    const [cx, cy, path] = queue.shift();
+                    const currentPath = [...path, { x: cx, y: cy }];
+
+                    if (cx === endX && cy === endY) {
+                        return currentPath;
+                    }
+
+                    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+                    for (const [dx, dy] of dirs) {
+                        const nx = cx + dx;
+                        const ny = cy + dy;
+
+                        if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
+                            if (this.grid[ny][nx] === 0 && !visited.has(`${nx},${ny}`)) {
+                                visited.add(`${nx},${ny}`);
+                                queue.push([nx, ny, currentPath]);
+                            }
+                        }
+                    }
+                }
+                return [];
+            }
+        }
+
+        // Main Game Class
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('mazeCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                this.cols = 33;
+                this.rows = 21;
+
+                this.playerGrid = { x: 1, y: 1 };
+                this.playerRender = { x: 1, y: 1 };
+                
+                this.end = { x: 1, y: this.rows - 2 };
+
+                this.gemsCollected = 0;
+                this.totalGems = 3;
+                this.isPlaying = false;
+
+                this.symbolTimer = 0;
+                this.symbolTimerInterval = null;
+
+                this.mazeGen = null;
+                this.grid = [];
+                this.gems = [];
+
+                this.keysPressed = {};
+                // Character speed control settings
+                this.lastMoveTime = 0;
+                this.moveDelay = 150; // ms delay between continuous steps
+
+                this.initUI();
+                this.setupEventListeners();
+                this.newGame();
+
+                this.animate = this.animate.bind(this);
+                requestAnimationFrame(this.animate);
+            }
+
+            initUI() {
+                this.toast = document.getElementById('gameToast');
+                this.toastMsg = document.getElementById('toastMsg');
+
+                this.symbolModal = document.getElementById('symbolModal');
+                this.symbolModalCard = document.getElementById('symbolModalCard');
+                this.symbolTypeTag = document.getElementById('symbolTypeTag');
+                this.symbolIconContainer = document.getElementById('symbolIconContainer');
+                this.symbolName = document.getElementById('symbolName');
+                this.symbolDesc = document.getElementById('symbolDesc');
+                this.closeSymbolBtn = document.getElementById('closeSymbolBtn');
+                this.closeSymbolBtnText = document.getElementById('closeSymbolBtnText');
+                this.symbolBtnIcon = document.getElementById('symbolBtnIcon');
+                this.isSymbolModalOpen = false;
+
+                this.endingCutsceneModal = document.getElementById('endingCutsceneModal');
+                this.endingCutsceneContent = document.getElementById('endingCutsceneContent');
+                this.triggerFadeOutBtn = document.getElementById('triggerFadeOutBtn');
+
+                this.blackoutOverlay = document.getElementById('blackoutOverlay');
+                this.blackoutContent = document.getElementById('blackoutContent');
+                this.blackoutRestartBtn = document.getElementById('blackoutRestartBtn');
+
+                this.helpModal = document.getElementById('helpModal');
+            }
+
+            setupEventListeners() {
+                window.addEventListener('keydown', (e) => {
+                    if (this.isSymbolModalOpen) {
+                        if (this.symbolTimer <= 0 && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) {
+                            e.preventDefault();
+                            this.closeSymbolModal();
+                        }
+                        return;
+                    }
+
+                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                        e.preventDefault();
+                        this.keysPressed[e.key] = true;
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                        this.keysPressed[e.key] = false;
+                    }
+                });
+
+                // Touch Swipe
+                let touchStartX = 0;
+                let touchStartY = 0;
+
+                this.canvas.addEventListener('touchstart', (e) => {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }, { passive: true });
+
+                this.canvas.addEventListener('touchend', (e) => {
+                    if (!this.isPlaying || this.isSymbolModalOpen) return;
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+
+                    const dx = touchEndX - touchStartX;
+                    const dy = touchEndY - touchStartY;
+                    const minSwipeDist = 18;
+
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        if (Math.abs(dx) > minSwipeDist) {
+                            this.tryMove(dx > 0 ? 1 : -1, 0);
+                        }
+                    } else {
+                        if (Math.abs(dy) > minSwipeDist) {
+                            this.tryMove(0, dy > 0 ? 1 : -1);
+                        }
+                    }
+                }, { passive: true });
+
+                // UI Controls
+                document.getElementById('restartBtn').addEventListener('click', () => this.newGame());
+                document.getElementById('helpBtn').addEventListener('click', () => this.openHelpModal());
+                document.getElementById('closeHelpBtn').addEventListener('click', () => this.closeHelpModal());
+                document.getElementById('confirmHelpBtn').addEventListener('click', () => this.closeHelpModal());
+
+                this.closeSymbolBtn.addEventListener('click', () => this.closeSymbolModal());
+
+                this.triggerFadeOutBtn.addEventListener('click', () => this.startFadeToBlack());
+                this.blackoutRestartBtn.addEventListener('click', () => {
+                    this.resetBlackoutOverlay();
+                    this.newGame();
+                });
+
+                document.getElementById('soundToggleBtn').addEventListener('click', () => {
+                    sound.enabled = !sound.enabled;
+                    const icon = document.getElementById('soundIcon');
+                    if (sound.enabled) {
+                        icon.className = "fa-solid fa-volume-high text-base sm:text-lg text-amber-100";
+                        this.showToast("소리 켬");
+                    } else {
+                        icon.className = "fa-solid fa-volume-xmark text-base sm:text-lg text-stone-400";
+                        this.showToast("소리 끔");
+                    }
+                });
+
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            openHelpModal() {
+                this.helpModal.classList.remove('opacity-0', 'pointer-events-none');
+            }
+
+            closeHelpModal() {
+                this.helpModal.classList.add('opacity-0', 'pointer-events-none');
+            }
+
+            newGame() {
+                this.mazeGen = new MazeGenerator(this.cols, this.rows);
+                this.grid = this.mazeGen.generate();
+                this.gems = this.mazeGen.gems;
+
+                this.playerGrid = { x: 1, y: 1 };
+                this.playerRender = { x: 1, y: 1 };
+                this.gemsCollected = 0;
+                this.isPlaying = true;
+
+                this.resizeCanvas();
+            }
+
+            handleContinuousInput() {
+                if (!this.isPlaying || this.isSymbolModalOpen) return;
+
+                const now = Date.now();
+                if (now - this.lastMoveTime < this.moveDelay) return;
+
+                let moved = false;
+                if (this.keysPressed['ArrowUp']) {
+                    moved = this.tryMove(0, -1);
+                } else if (this.keysPressed['ArrowDown']) {
+                    moved = this.tryMove(0, 1);
+                } else if (this.keysPressed['ArrowLeft']) {
+                    moved = this.tryMove(-1, 0);
+                } else if (this.keysPressed['ArrowRight']) {
+                    moved = this.tryMove(1, 0);
+                }
+
+                if (moved) {
+                    this.lastMoveTime = now;
+                }
+            }
+
+            showSymbolModal(gem) {
+                this.isPlaying = false;
+                this.isSymbolModalOpen = true;
+
+                this.symbolTypeTag.textContent = gem.typeTag;
+                this.symbolTypeTag.className = `inline-block px-4 py-1.5 rounded-full text-xs sm:text-sm font-extrabold mb-4 shadow-sm border ${gem.tagBg}`;
+                
+                this.symbolModalCard.className = `bg-stone-50 border-2 ${gem.cardBorder} rounded-3xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl transform scale-95 transition-all duration-300 relative overflow-hidden`;
+
+                if (gem.isSvg) {
+                    this.symbolIconContainer.innerHTML = jungsanEmblemSvgRaw;
+                } else {
+                    this.symbolIconContainer.innerHTML = `<span>${gem.icon}</span>`;
+                }
+
+                this.symbolName.textContent = gem.name;
+                this.symbolDesc.textContent = gem.desc;
+
+                // 5-second popup timer
+                this.symbolTimer = 5;
+                this.closeSymbolBtn.disabled = true;
+                this.closeSymbolBtn.className = "w-full py-3.5 bg-stone-500 text-stone-200 font-extrabold rounded-2xl shadow-xl transition-all text-base sm:text-lg flex items-center justify-center gap-2 opacity-70 cursor-not-allowed";
+                this.symbolBtnIcon.className = "fa-solid fa-clock text-amber-300 animate-spin";
+                this.closeSymbolBtnText.textContent = `5초 후 계속할 수 있습니다 (${this.symbolTimer}s)`;
+
+                if (this.symbolTimerInterval) clearInterval(this.symbolTimerInterval);
+
+                this.symbolTimerInterval = setInterval(() => {
+                    this.symbolTimer--;
+                    if (this.symbolTimer > 0) {
+                        this.closeSymbolBtnText.textContent = `5초 후 계속할 수 있습니다 (${this.symbolTimer}s)`;
+                    } else {
+                        clearInterval(this.symbolTimerInterval);
+                        this.closeSymbolBtn.disabled = false;
+                        this.closeSymbolBtn.className = "w-full py-3.5 bg-gradient-to-r from-amber-800 via-stone-800 to-amber-900 hover:from-amber-700 hover:to-amber-800 text-amber-50 font-extrabold rounded-2xl shadow-xl transition-all text-base sm:text-lg flex items-center justify-center gap-2 cursor-pointer opacity-100 hover:scale-[1.02]";
+                        this.symbolBtnIcon.className = "fa-solid fa-arrow-right text-amber-300";
+                        this.closeSymbolBtnText.textContent = "탐험 계속하기";
+                    }
+                }, 1000);
+
+                this.symbolModal.classList.remove('opacity-0', 'pointer-events-none');
+                setTimeout(() => {
+                    this.symbolModalCard.classList.remove('scale-95');
+                    this.symbolModalCard.classList.add('scale-100');
+                }, 10);
+            }
+
+            closeSymbolModal() {
+                if (!this.isSymbolModalOpen || this.symbolTimer > 0) return;
+
+                if (this.symbolTimerInterval) clearInterval(this.symbolTimerInterval);
+
+                this.symbolModalCard.classList.remove('scale-100');
+                this.symbolModalCard.classList.add('scale-95');
+                this.symbolModal.classList.add('opacity-0', 'pointer-events-none');
+                
+                this.isSymbolModalOpen = false;
+                this.isPlaying = true;
+
+                if (this.playerGrid.x === this.end.x && this.playerGrid.y === this.end.y) {
+                    this.checkGoal();
+                }
+            }
+
+            tryMove(dx, dy) {
+                if (!this.isPlaying || this.isSymbolModalOpen) return false;
+
+                const dist = Math.hypot(this.playerGrid.x - this.playerRender.x, this.playerGrid.y - this.playerRender.y);
+                if (dist > 0.3) return false;
+
+                const targetX = this.playerGrid.x + dx;
+                const targetY = this.playerGrid.y + dy;
+
+                if (targetY >= 0 && targetY < this.rows && targetX >= 0 && targetX < this.cols) {
+                    if (this.grid[targetY][targetX] === 0) {
+                        this.playerGrid.x = targetX;
+                        this.playerGrid.y = targetY;
+
+                        sound.playMove();
+
+                        this.gems.forEach(gem => {
+                            if (!gem.collected && gem.x === this.playerGrid.x && gem.y === this.playerGrid.y) {
+                                gem.collected = true;
+                                this.gemsCollected++;
+                                sound.playGem();
+                                this.showToast(gem.toast);
+                                this.showSymbolModal(gem);
+                            }
+                        });
+
+                        if (!this.isSymbolModalOpen && this.playerGrid.x === this.end.x && this.playerGrid.y === this.end.y) {
+                            this.checkGoal();
+                        }
+
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            checkGoal() {
+                if (this.gemsCollected >= this.totalGems) {
+                    this.handleWin();
+                } else {
+                    this.handleIncompleteReset();
+                }
+            }
+
+            handleIncompleteReset() {
+                this.isPlaying = false;
+                this.showToast("⚠️ 상징물을 모두 모아야 출발지에 도착할 수 있어요!");
+                sound.playTone(180, 'sawtooth', 0.3, 0.2);
+                
+                setTimeout(() => {
+                    this.isPlaying = true;
+                }, 1200);
+            }
+
+            handleWin() {
+                this.isPlaying = false;
+                sound.playWin();
+
+                this.endingCutsceneModal.classList.remove('opacity-0', 'pointer-events-none');
+                this.endingCutsceneContent.classList.remove('scale-95');
+                this.endingCutsceneContent.classList.add('scale-100');
+            }
+
+            startFadeToBlack() {
+                this.endingCutsceneModal.classList.add('opacity-0', 'pointer-events-none');
+                this.endingCutsceneContent.classList.remove('scale-100');
+                this.endingCutsceneContent.classList.add('scale-95');
+
+                this.blackoutOverlay.classList.remove('pointer-events-none');
+                this.blackoutOverlay.classList.remove('opacity-0');
+                this.blackoutOverlay.classList.add('opacity-100');
+
+                setTimeout(() => {
+                    this.blackoutContent.classList.remove('opacity-0');
+                    this.blackoutContent.classList.add('opacity-100');
+                }, 800);
+            }
+
+            resetBlackoutOverlay() {
+                this.blackoutContent.classList.remove('opacity-100');
+                this.blackoutContent.classList.add('opacity-0');
+                this.blackoutOverlay.classList.remove('opacity-100');
+                this.blackoutOverlay.classList.add('opacity-0');
+                this.blackoutOverlay.classList.add('pointer-events-none');
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                this.cellW = this.canvas.width / this.cols;
+                this.cellH = this.canvas.height / this.rows;
+            }
+
+            animate() {
+                const lerpFactor = 0.2; // Smooth movement interpolation speed
+                this.playerRender.x += (this.playerGrid.x - this.playerRender.x) * lerpFactor;
+                this.playerRender.y += (this.playerGrid.y - this.playerRender.y) * lerpFactor;
+
+                if (this.isPlaying) {
+                    this.handleContinuousInput();
+                }
+
+                this.render();
+                requestAnimationFrame(this.animate);
+            }
+
+            render() {
+                const cw = this.cellW;
+                const ch = this.cellH;
+                if (!cw || !ch) return;
+
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // 1. Draw Maze Ground (White/Ivory) & Walls (Rich Wood Tone)
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const x = c * cw;
+                        const y = r * ch;
+
+                        // Check Center Dodgeball Court Cutout Area
+                        if (c >= 1 && c <= 20 && r >= 7 && r <= 13) {
+                            this.ctx.fillStyle = '#b45309'; // Warm Wooden Dodgeball Court Floor
+                            this.ctx.fillRect(x, y, cw + 0.5, ch + 0.5);
+                        } else if (this.grid[r][c] === 1) {
+                            // Wood Walls (Rich Warm Dark Mahogany Wood)
+                            this.ctx.fillStyle = '#512a10'; 
+                            this.ctx.fillRect(x, y, cw + 0.5, ch + 0.5);
+                            this.ctx.strokeStyle = '#78350f';
+                            this.ctx.lineWidth = 1;
+                            this.ctx.strokeRect(x, y, cw, ch);
+                        } else {
+                            // Bright Crisp White/Ivory Floor
+                            this.ctx.fillStyle = '#fefcf8'; 
+                            this.ctx.fillRect(x, y, cw + 0.5, ch + 0.5);
+                            this.ctx.strokeStyle = '#f3ebd9';
+                            this.ctx.lineWidth = 0.5;
+                            this.ctx.strokeRect(x, y, cw, ch);
+                        }
+                    }
+                }
+
+                // 2. Draw Dodgeball Court (피구장) Lines & Icons
+                const cutoutStartX = 1 * cw;
+                const cutoutStartY = 7 * ch;
+                const cutoutW = 20 * cw;
+                const cutoutH = 7 * ch;
+
+                this.ctx.save();
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 2.5;
+                const padW = cw * 0.5;
+                const padH = ch * 0.5;
+                const fieldX = cutoutStartX + padW;
+                const fieldY = cutoutStartY + padH;
+                const fieldW = cutoutW - (padW * 2);
+                const fieldH = cutoutH - (padH * 2);
+
+                // Outer Dodgeball Court Boundary
+                this.ctx.strokeRect(fieldX, fieldY, fieldW, fieldH);
+
+                const midX = cutoutStartX + cutoutW / 2;
+                const midY = cutoutStartY + cutoutH / 2;
+                
+                // Dodgeball Center Line (중앙선)
+                this.ctx.strokeStyle = '#fef08a';
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.moveTo(midX, fieldY);
+                this.ctx.lineTo(midX, fieldY + fieldH);
+                this.ctx.stroke();
+
+                // Dodgeball Attack / Outer Zones (공격구역/외야선)
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                this.ctx.lineWidth = 1.5;
+                this.ctx.strokeRect(fieldX - cw * 0.3, fieldY - ch * 0.3, fieldW + cw * 0.6, fieldH + ch * 0.6);
+
+                // Center Circle & Dodgeballs
+                this.ctx.beginPath();
+                this.ctx.arc(midX, midY, Math.min(fieldW, fieldH) * 0.22, 0, Math.PI * 2);
+                this.ctx.stroke();
+
+                this.ctx.font = `${Math.floor(ch * 1.5)}px sans-serif`;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('🏐', midX, midY);
+
+                // Side Players / Dodgeball Emojis
+                this.ctx.font = `${Math.floor(ch * 1.1)}px sans-serif`;
+                this.ctx.fillText('🤾‍♀️', fieldX + cw * 2, midY);
+                this.ctx.fillText('🤾‍♂️', fieldX + fieldW - cw * 2, midY);
+
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.font = `bold ${Math.max(12, Math.floor(ch * 0.8))}px Pretendard, sans-serif`;
+                this.ctx.shadowColor = 'rgba(0,0,0,0.7)';
+                this.ctx.shadowBlur = 5;
+                this.ctx.fillText('양산증산초 피구장', midX, fieldY + fieldH - ch * 0.4);
+                this.ctx.restore();
+
+                // 3. Draw Symbol Gem Collectibles
+                const pulse = Math.sin(Date.now() / 180) * 3.5;
+
+                this.gems.forEach(gem => {
+                    if (!gem.collected) {
+                        const cx = (gem.x + 0.5) * cw;
+                        const cy = (gem.y + 0.5) * ch;
+                        const baseRadius = Math.min(cw, ch) * 0.44;
+                        const radius = baseRadius + pulse * 0.3;
+
+                        this.ctx.save();
+                        
+                        this.ctx.fillStyle = gem.shadow;
+                        this.ctx.globalAlpha = 0.35 + Math.sin(Date.now() / 200) * 0.15;
+                        this.ctx.beginPath();
+                        this.ctx.arc(cx, cy, radius * 1.35, 0, Math.PI * 2);
+                        this.ctx.fill();
+                        this.ctx.globalAlpha = 1.0;
+
+                        this.ctx.fillStyle = gem.color;
+                        this.ctx.shadowColor = gem.shadow;
+                        this.ctx.shadowBlur = 10;
+                        this.ctx.beginPath();
+                        this.ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                        this.ctx.fill();
+
+                        this.ctx.strokeStyle = '#ffffff';
+                        this.ctx.lineWidth = 2.5;
+                        this.ctx.stroke();
+
+                        this.ctx.shadowBlur = 0;
+                        if (gem.isSvg) {
+                            if (emblemImg.complete) {
+                                const size = Math.min(cw, ch) * 0.75;
+                                this.ctx.drawImage(emblemImg, cx - size / 2, cy - size / 2, size, size);
+                            }
+                        } else {
+                            this.ctx.font = `bold ${Math.floor(Math.min(cw, ch) * 0.55)}px sans-serif`;
+                            this.ctx.textAlign = 'center';
+                            this.ctx.textBaseline = 'middle';
+                            this.ctx.fillText(gem.icon, cx, cy);
+                        }
+                        this.ctx.restore();
+                    }
+                });
+
+                // 4. Draw Goal Exit Marker
+                const ex = (this.end.x + 0.5) * cw;
+                const ey = (this.end.y + 0.5) * ch;
+                this.ctx.save();
+                this.ctx.fillStyle = '#dc2626';
+                this.ctx.shadowColor = '#f87171';
+                this.ctx.shadowBlur = 12;
+                this.ctx.beginPath();
+                this.ctx.arc(ex, ey, Math.min(cw, ch) * 0.42, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.font = `bold ${Math.floor(Math.min(cw, ch) * 0.45)}px sans-serif`;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('🏁', ex, ey);
+                this.ctx.restore();
+
+                // 5. Draw Highly Visible Eye-Catching Player Character
+                const px = (this.playerRender.x + 0.5) * cw;
+                const py = (this.playerRender.y + 0.5) * ch;
+                const playerPulse = Math.sin(Date.now() / 120) * 3.5;
+                const playerRadius = Math.min(cw, ch) * 0.48;
+
+                this.ctx.save();
+                
+                // Outer Vivid Pulsing Cyan Neon Ring
+                this.ctx.strokeStyle = '#06b6d4';
+                this.ctx.lineWidth = 4;
+                this.ctx.shadowColor = '#06b6d4';
+                this.ctx.shadowBlur = 20;
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, playerRadius * 1.4 + playerPulse, 0, Math.PI * 2);
+                this.ctx.stroke();
+
+                // Inner Bright Electric Yellow Aura Ring
+                this.ctx.strokeStyle = '#facc15';
+                this.ctx.lineWidth = 2.5;
+                this.ctx.shadowColor = '#eab308';
+                this.ctx.shadowBlur = 12;
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, playerRadius * 1.15, 0, Math.PI * 2);
+                this.ctx.stroke();
+
+                // Player Center Gradient Fill
+                const grad = this.ctx.createRadialGradient(px, py, 2, px, py, playerRadius);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.4, '#fde047');
+                grad.addColorStop(0.85, '#ea580c');
+                grad.addColorStop(1, '#9a3412');
+
+                this.ctx.fillStyle = grad;
+                this.ctx.shadowColor = '#f97316';
+                this.ctx.shadowBlur = 16;
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, playerRadius, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 2.5;
+                this.ctx.stroke();
+
+                this.ctx.shadowBlur = 0;
+                this.ctx.font = `${Math.floor(Math.min(cw, ch) * 0.58)}px sans-serif`;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('🎓', px, py);
+
+                this.ctx.restore();
+            }
+
+            showToast(msg) {
+                this.toastMsg.textContent = msg;
+                this.toast.classList.remove('opacity-0');
+                clearTimeout(this.toastTimeout);
+                this.toastTimeout = setTimeout(() => {
+                    this.toast.classList.add('opacity-0');
+                }, 2200);
+            }
+        }
+
+        window.onload = () => {
+            new Game();
+        };
+    </script>
+</body>
+</html>
